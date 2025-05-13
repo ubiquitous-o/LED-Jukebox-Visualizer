@@ -223,7 +223,7 @@ class ScrollRenderer:
     def __init__(self, width, height):
         self.width = width
         self.height = height
-        self.window = pyglet.window.Window(width, height, "Panorama", visible=True)
+        self.window = pyglet.window.Window(width, height, "Scroll Renderer", visible=True)
         self.window.switch_to()
         self.window.on_draw = self.on_draw
         self.faces = {}

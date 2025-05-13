@@ -109,9 +109,7 @@ void main() {
             int face = -1;
             if(u < fw) { face = 0; local_u = u / fw; local_v = v; }           // top
             else if(u < 2.0*fw) { face = 1; local_u = (u-fw)/fw; local_v = v; } // front
-            //else if(u < 3.0*fw) { face = 2; local_u = (u-2.0*fw)/fw; local_v = v; } // right
             else if(u < 4.0*fw) { face = 3; local_u = (u-3.0*fw)/fw; local_v = v; } // back
-            //else if(u < 5.0*fw) { face = 4; local_u = (u-4.0*fw)/fw; local_v = v; } // left
             else { face = 5; local_u = (u-5.0*fw)/fw; local_v = v; }                // bottom
 
             // top, front, bottom, back のみ循環
@@ -155,7 +153,7 @@ void main() {
                         flip = true;
                     }
                     else if (new_face == 2) {
-                        flip = false; // 二重にかかるのでfalse
+                        flip = false;
                     }
                     else if (new_face == 3) {
                         flip = true;
@@ -215,7 +213,6 @@ void main() {
 
                 uv = vec2(new_u * fw, new_v) + vec2(base_u, 0.0);
             }
-            // right/left/back以外はそのまま
         }
     }
 
@@ -267,7 +264,7 @@ class ScrollRenderer:
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * 4, ctypes.c_void_p(2 * 4))
         glEnableVertexAttribArray(1)
         glBindBuffer(GL_ARRAY_BUFFER, 0)
-        glBindVertexArray(0)  # ここで解除
+        glBindVertexArray(0)
 
         self.texture_id = glGenTextures(1)
 
@@ -298,17 +295,12 @@ class ScrollRenderer:
         axis = axis.lower()
         if axis == "y":
             self.rotation["y"] = degree
-            # 側面スクロール値
             self.y_scroll = (degree / 90.0) % 4.0
-            # top/bottom用ラジアン
             self.y_angle = np.radians(degree)
         elif axis == "x":
             self.rotation["x"] = degree
-            # x軸回転用の値をここで計算してself.x_angleなどに格納
             self.x_angle = np.radians(degree)
-            self.x_scroll = (degree / 90.0) % 4.0 # ←追加
-
-        # 他の軸も拡張可能
+            self.x_scroll = (degree / 90.0) % 4.0
 
     def on_draw(self):
         glClearColor(0.1, 0.1, 0.1, 1.0)
@@ -319,7 +311,7 @@ class ScrollRenderer:
         glUniform1i(glGetUniformLocation(self.shader_program, "u_Texture"), 0)
         glUniform1f(glGetUniformLocation(self.shader_program, "u_YScroll"), self.y_scroll)
         glUniform1f(glGetUniformLocation(self.shader_program, "u_YAngle"), self.y_angle)
-        glUniform1f(glGetUniformLocation(self.shader_program, "u_XScroll"), getattr(self, "x_scroll", 0.0))  # ←追加
+        glUniform1f(glGetUniformLocation(self.shader_program, "u_XScroll"), getattr(self, "x_scroll", 0.0))
         glUniform1f(glGetUniformLocation(self.shader_program, "u_XAngle"), getattr(self, "x_angle", 0.0))
         glBindVertexArray(self.vao)
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, None)
@@ -336,43 +328,3 @@ class ScrollRenderer:
             glDeleteBuffers(1, [self.ebo])
         if self.texture_id:
             glDeleteTextures(1, [self.texture_id])
-
-if __name__ == "__main__":
-    renderer = PanoramaRenderer(64*6, 64)
-
-    img = Image.new("RGBA", (64, 64))  # テスト用に黒い画像を作成
-    imgs = []
-    background_colors = ["red", "green", "blue", "yellow", "purple", "orange"]
-    for i in range(6):
-        tmp = img.copy()
-        tmp.paste(background_colors[i], [0, 0, tmp.width, tmp.height])
-        draw = ImageDraw.Draw(tmp)
-        text = str(i+1)
-        font_size = 20  # 文字サイズを指定
-        font = ImageFont.truetype("test/Courier.ttc", font_size)  # フォントを指定
-        text_bbox = draw.textbbox((0, 0), text, font=font)
-        text_size = (text_bbox[2] - text_bbox[0], text_bbox[3] - text_bbox[1])
-        text_position = ((tmp.width - text_size[0]) // 2, (tmp.height - text_size[1]) // 2)
-        draw.text(text_position, text, fill="black", font=font)
-        imgs.append(tmp)
-
-    concat_img = Image.new("RGBA", (img.width * 6, img.height))
-    for i in range(6):
-        concat_img.paste(imgs[i], (i * img.width, 0))
-
-    renderer.set_panorama_texture(concat_img)  # panorama_imageはPIL.Image(384x64)
-
-    # アニメーション的に回転させる例
-    import time
-
-    def update(dt):
-        # 0〜359度で回転
-        current_deg = (update.deg + 2) % 360
-        renderer.rotate("x", current_deg)
-        renderer.window.dispatch_event('on_draw')
-        update.deg = current_deg
-
-    update.deg = 0
-
-    pyglet.clock.schedule_interval(update, 1/30)  # 30FPSで回転
-    pyglet.app.run()

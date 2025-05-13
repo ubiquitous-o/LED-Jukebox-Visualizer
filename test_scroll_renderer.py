@@ -18,8 +18,8 @@ if __name__ == "__main__":
         tmp.paste(background_colors[i], [0, 0, tmp.width, tmp.height])
         draw = ImageDraw.Draw(tmp)
         text = str(i+1)
-        font_size = 20  # 文字サイズを指定
-        font = ImageFont.truetype("test/Courier.ttc", font_size)  # フォントを指定
+        font_size = 20
+        font = ImageFont.truetype("test/Courier.ttc", font_size)
         text_bbox = draw.textbbox((0, 0), text, font=font)
         text_size = (text_bbox[2] - text_bbox[0], text_bbox[3] - text_bbox[1])
         text_position = ((tmp.width - text_size[0]) // 2, (tmp.height - text_size[1]) // 2)
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     def update(dt):
         # 0〜359度で回転
         current_deg = (update.deg + 2) % 360
-        renderer.rotate("x", -current_deg)
+        renderer.rotate("x", current_deg)
         renderer.window.dispatch_event('on_draw')
         update.deg = current_deg
 

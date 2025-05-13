@@ -1,1 +1,1 @@
-# LED Jukebox Renderer
+# LED Jukebox Visualizer

@@ -8,7 +8,7 @@ import pyglet
 from renderer.scroll_renderer import ScrollRenderer, RotationAxis
 
 if __name__ == "__main__":
-    renderer = ScrollRenderer(64, 64, show_cube=True)
+    renderer = ScrollRenderer(64, 64, show_cube=True, use_offscreen=False)
 
     img = Image.new("RGBA", (64, 64))
     imgs = []
@@ -33,18 +33,17 @@ if __name__ == "__main__":
     renderer.set_panorama_texture(concat_img)
 
     import time
-
     def update(dt):
-        # 0〜359度で回転
         current_deg = (update.deg + 2) % 360
-        rotated_image = renderer.rotate(RotationAxis.Z, -current_deg)
-        renderer.window.dispatch_event('on_draw')
+        renderer.rotate(RotationAxis.Z, -current_deg)
+        renderer.on_draw()  # FBOに描画
+        img = renderer.get_current_panorama_frame()  # FBOから画像取得
         update.deg = current_deg
 
         # save_path = f"out/rotated_image_{current_deg}.png"
-        # rotated_image.save(save_path)
+        # img.save(save_path)
 
     update.deg = 0
 
-    pyglet.clock.schedule_interval(update, 1/30)  # 30FPSで回転
+    pyglet.clock.schedule_interval(update, 1/30)
     pyglet.app.run()

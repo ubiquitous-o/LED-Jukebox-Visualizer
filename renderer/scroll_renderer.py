@@ -7,7 +7,7 @@ import glm
 from PIL import Image, ImageDraw
 from PIL import ImageFont
 from enum import Enum
-from .shaders import PANORAMA_VERTEX_SHADER, PANORAMA_FRAGMENT_SHADER, CUBE_VERTEX_SHADER, CUBE_FRAGMENT_SHADER
+from .scroll_shader import *
 
 class RotationAxis(Enum):
     X = 0
@@ -15,13 +15,30 @@ class RotationAxis(Enum):
     Z = 2
 
 class ScrollRenderer:
-    def __init__(self, width, height, show_cube=False):
+    def __init__(self, width, height, show_cube=False, use_offscreen=False):
         self.width = width * 6
         self.height = height
+        self.use_offscreen = use_offscreen
         self.window = pyglet.window.Window(self.width, self.height, "Scroll Renderer (Panorama)", visible=True)
         self.window.switch_to()
         self.window.on_draw = self.on_draw
-        
+
+        if self.use_offscreen:
+            # オフスクリーン用FBOとテクスチャを作成
+            self.fbo = glGenFramebuffers(1)
+            self.offscreen_tex = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.offscreen_tex)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, self.width, self.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, None)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.offscreen_tex, 0)
+            assert glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE
+            glBindFramebuffer(GL_FRAMEBUFFER, 0)
+        else:
+            self.fbo = None
+            self.offscreen_tex = None
+
         self.angle = 0
         self.scroll = 0
         self.axis = RotationAxis.X
@@ -169,19 +186,24 @@ class ScrollRenderer:
         self.axis = axis
         self.angle = np.radians(degree)
         self.scroll = (degree / 90.0) % 4.0
-        rotated_image = self.get_current_frame_panorama_image()
+        rotated_image = self.get_current_panorama_frame()
 
         if self.show_cube:
             self.set_cube_texture_from_image(rotated_image)
             self.cube_window.dispatch_event('on_draw')
-        return rotated_image
     
-    def get_current_frame_panorama_image(self):
-        width, height = self.window.width, self.window.height
-        glPixelStorei(GL_PACK_ALIGNMENT, 1)
-        data = glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE)
-        image = Image.frombytes("RGBA", (width, height), data)
-        image = image.transpose(Image.FLIP_TOP_BOTTOM)  # OpenGLは上下逆
+    def get_current_panorama_frame(self):
+        if self.use_offscreen:
+            glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
+            glPixelStorei(GL_PACK_ALIGNMENT, 1)
+            data = glReadPixels(0, 0, self.width, self.height, GL_RGBA, GL_UNSIGNED_BYTE)
+            glBindFramebuffer(GL_FRAMEBUFFER, 0)
+        else:
+            self.window.switch_to()
+            glPixelStorei(GL_PACK_ALIGNMENT, 1)
+            data = glReadPixels(0, 0, self.width, self.height, GL_RGBA, GL_UNSIGNED_BYTE)
+        image = Image.frombytes("RGBA", (self.width, self.height), data)
+        image = image.transpose(Image.FLIP_TOP_BOTTOM)
         return image
 
     def set_cube_texture_from_image(self, pil_image):
@@ -200,7 +222,13 @@ class ScrollRenderer:
         glFinish()  # ← 追加
     
     def on_draw(self):
-        self.window.switch_to()
+        if self.use_offscreen:
+            glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
+            glViewport(0, 0, self.width, self.height)
+        else:
+            self.window.switch_to()
+            glViewport(0, 0, self.width, self.height)
+
         glClearColor(0.1, 0.1, 0.1, 1.0)
         glClear(GL_COLOR_BUFFER_BIT)
         glUseProgram(self.shader_program)
@@ -214,6 +242,9 @@ class ScrollRenderer:
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, None)
         glBindVertexArray(0)
         glBindTexture(GL_TEXTURE_2D, 0)
+
+        if self.use_offscreen:
+            glBindFramebuffer(GL_FRAMEBUFFER, 0)
     
     def cube_on_draw(self):
         self.cube_window.switch_to()
@@ -270,3 +301,7 @@ class ScrollRenderer:
             glDeleteBuffers(1, [self.cube_vbo])
         if hasattr(self, "cube_ebo"):
             glDeleteBuffers(1, [self.cube_ebo])
+        if hasattr(self, "fbo") and self.fbo:
+            glDeleteFramebuffers(1, [self.fbo])
+        if hasattr(self, "offscreen_tex") and self.offscreen_tex:
+            glDeleteTextures(1, [self.offscreen_tex])

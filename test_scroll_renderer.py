@@ -5,7 +5,7 @@ from PIL import Image, ImageDraw
 from PIL import ImageFont
 import pyglet
 
-from renderer.scroll_renderer import ScrollRenderer
+from renderer.scroll_renderer import ScrollRenderer, RotationAxis
 
 if __name__ == "__main__":
     renderer = ScrollRenderer(64*6, 64)
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     def update(dt):
         # 0〜359度で回転
         current_deg = (update.deg + 2) % 360
-        renderer.rotate("x", current_deg)
+        renderer.rotate(RotationAxis.Y, -current_deg)
         renderer.window.dispatch_event('on_draw')
         update.deg = current_deg
 

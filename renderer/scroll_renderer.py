@@ -1,10 +1,12 @@
 import numpy as np
-from PIL import Image
 import ctypes
 from OpenGL.GL import *
+from OpenGL.GL.shaders import compileShader, compileProgram
 import pyglet
+
 from PIL import Image, ImageDraw
 from PIL import ImageFont
+from enum import Enum
 
 VERTEX_SHADER_SOURCE = """
 #version 330 core
@@ -22,10 +24,9 @@ FRAGMENT_SHADER_SOURCE = """
 in vec2 v_TexCoord;
 out vec4 FragColor;
 uniform sampler2D u_Texture;
-uniform float u_YScroll;
-uniform float u_YAngle;
-uniform float u_XScroll;
-uniform float u_XAngle;
+uniform float u_Scroll;
+uniform float u_Angle;
+uniform int u_Axis;
 
 void main() {
     float face_width = 1.0 / 6.0;
@@ -34,12 +35,12 @@ void main() {
     vec2 uv = vec2(u, v);
 
     // --- Y軸回転処理 ---
-    if (abs(u_YAngle) > 0.0001 || abs(u_YScroll) > 0.0001) {
+    if (u_Axis == 1) {
         // top
         if(u < face_width) {
             vec2 local = vec2(u / face_width, v);
             vec2 rel = local - vec2(0.5, 0.5);
-            float angle = -u_YAngle;
+            float angle = -u_Angle;
             float cosA = cos(angle);
             float sinA = sin(angle);
             vec2 rot = vec2(
@@ -53,7 +54,7 @@ void main() {
         else if(u >= 5.0 * face_width) {
             vec2 local = vec2((u - 5.0 * face_width) / face_width, v);
             vec2 rel = local - vec2(0.5, 0.5);
-            float angle = u_YAngle;
+            float angle = u_Angle;
             float cosA = cos(angle);
             float sinA = sin(angle);
             vec2 rot = vec2(
@@ -66,19 +67,19 @@ void main() {
         // 側面スクロール
         else if(u >= face_width && u < 5.0 * face_width) {
             float rel = (u - face_width) / (4.0 * face_width);
-            rel = mod(rel + u_YScroll / 4.0, 1.0);
+            rel = mod(rel + u_Scroll / 4.0, 1.0);
             u = face_width + rel * 4.0 * face_width;
             uv = vec2(u, v);
         }
     }
 
     // --- X軸回転処理 ---
-    else if (abs(u_XAngle) > 0.0001 || abs(u_XScroll) > 0.0001) {
+    else if (u_Axis == 0) {
         // right面（その場で回転）
         if(u >= 2.0 * face_width && u < 3.0 * face_width) {
             vec2 local = vec2((u - 2.0 * face_width) / face_width, v);
             vec2 rel = local - vec2(0.5, 0.5);
-            float angle = -u_XAngle;
+            float angle = -u_Angle;
             float cosA = cos(angle);
             float sinA = sin(angle);
             vec2 rot = vec2(
@@ -92,7 +93,7 @@ void main() {
         else if(u >= 4.0 * face_width && u < 5.0 * face_width) {
             vec2 local = vec2((u - 4.0 * face_width) / face_width, v);
             vec2 rel = local - vec2(0.5, 0.5);
-            float angle = u_XAngle;
+            float angle = u_Angle;
             float cosA = cos(angle);
             float sinA = sin(angle);
             vec2 rot = vec2(
@@ -122,7 +123,7 @@ void main() {
 
             if(tfbb_face >= 0) {
                 // 0:top, 1:front, 2:bottom, 3:back
-                float scroll = u_XScroll; // 0〜4
+                float scroll = u_Scroll; // 0〜4
                 float rel;
                 int seg = 0;
                 float frac = 0.0;
@@ -219,6 +220,12 @@ void main() {
     FragColor = texture(u_Texture, uv);
 }
 """
+
+class RotationAxis(Enum):
+    X = 0
+    Y = 1
+    Z = 2
+
 class ScrollRenderer:
     def __init__(self, width, height):
         self.width = width
@@ -227,18 +234,15 @@ class ScrollRenderer:
         self.window.switch_to()
         self.window.on_draw = self.on_draw
         self.faces = {}
-        # 軸ごとの回転状態
-        self.rotation = {"x": 0.0, "y": 0.0}
-        self.y_scroll = 0.0
-        self.y_angle = 0.0
-        self.x_angle = 0.0
-
+        
+        self.angle = 0
+        self.scroll = 0
+        self.axis = RotationAxis.X    
 
         # ここでVAOを生成・バインド
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
 
-        from OpenGL.GL.shaders import compileShader, compileProgram
         vs = compileShader(VERTEX_SHADER_SOURCE, GL_VERTEX_SHADER)
         fs = compileShader(FRAGMENT_SHADER_SOURCE, GL_FRAGMENT_SHADER)
         self.shader_program = compileProgram(vs, fs)
@@ -291,16 +295,10 @@ class ScrollRenderer:
         glBindTexture(GL_TEXTURE_2D, 0)
 
 
-    def rotate(self, axis: str, degree: float):
-        axis = axis.lower()
-        if axis == "y":
-            self.rotation["y"] = degree
-            self.y_scroll = (degree / 90.0) % 4.0
-            self.y_angle = np.radians(degree)
-        elif axis == "x":
-            self.rotation["x"] = degree
-            self.x_angle = np.radians(degree)
-            self.x_scroll = (degree / 90.0) % 4.0
+    def rotate(self, axis: RotationAxis, degree: float):
+        self.axis = axis
+        self.angle = np.radians(degree)
+        self.scroll = (degree / 90.0) % 4.0
 
     def on_draw(self):
         glClearColor(0.1, 0.1, 0.1, 1.0)
@@ -309,14 +307,14 @@ class ScrollRenderer:
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D, self.texture_id)
         glUniform1i(glGetUniformLocation(self.shader_program, "u_Texture"), 0)
-        glUniform1f(glGetUniformLocation(self.shader_program, "u_YScroll"), self.y_scroll)
-        glUniform1f(glGetUniformLocation(self.shader_program, "u_YAngle"), self.y_angle)
-        glUniform1f(glGetUniformLocation(self.shader_program, "u_XScroll"), getattr(self, "x_scroll", 0.0))
-        glUniform1f(glGetUniformLocation(self.shader_program, "u_XAngle"), getattr(self, "x_angle", 0.0))
+        glUniform1f(glGetUniformLocation(self.shader_program, "u_Scroll"), self.scroll)
+        glUniform1f(glGetUniformLocation(self.shader_program, "u_Angle"), self.angle)
+        glUniform1i(glGetUniformLocation(self.shader_program, "u_Axis"), self.axis.value)
         glBindVertexArray(self.vao)
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, None)
         glBindVertexArray(0)
         glBindTexture(GL_TEXTURE_2D, 0)
+        
     def cleanup(self):
         if self.shader_program:
             glDeleteProgram(self.shader_program)

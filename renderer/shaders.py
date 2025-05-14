@@ -212,7 +212,7 @@ void main() {
         if(u >= face_width && u < 2.0 * face_width) {
             vec2 local = vec2((u - face_width) / face_width, v);
             vec2 rel = local - vec2(0.5, 0.5);
-            float angle = -u_Angle;
+            float angle = u_Angle;
             float cosA = cos(angle);
             float sinA = sin(angle);
             vec2 rot = vec2(
@@ -226,7 +226,7 @@ void main() {
         else if(u >= 3.0 * face_width && u < 4.0 * face_width) {
             vec2 local = vec2((u - 3.0 * face_width) / face_width, v);
             vec2 rel = local - vec2(0.5, 0.5);
-            float angle = u_Angle;
+            float angle = -u_Angle;
             float cosA = cos(angle);
             float sinA = sin(angle);
             vec2 rot = vec2(
@@ -263,23 +263,23 @@ void main() {
                 if(trbl_face == 0) {
                     // top: 右から左へ
                     rel = trbl_u + scroll;
-                    seg = int(floor(rel));
-                    frac = rel - float(seg);
+                    seg =  - int(floor(rel));
+                    frac = rel + float(seg);
                 } else if(trbl_face == 1) {
                     // right: 上から下へ
                     rel = trbl_v + scroll;
-                    seg = int(floor(rel));
-                    frac = rel - float(seg);
+                    seg = - int(floor(rel));
+                    frac = rel + float(seg);
                 } else if(trbl_face == 2) {
                     // bottom: 右から左へ
                     rel = trbl_u + scroll;
-                    seg = int(floor(rel));
-                    frac = rel - float(seg);
+                    seg = - int(floor(rel));
+                    frac = rel + float(seg);
                 } else if(trbl_face == 3) {
                     // left: 下から上へ
                     rel = 1.0 - trbl_v + scroll;
-                    seg = int(floor(rel));
-                    frac = rel - float(seg);
+                    seg = -int(floor(rel));
+                    frac = rel + float(seg);
                 }
 
                 // 面インデックスを循環
@@ -290,6 +290,7 @@ void main() {
                 float new_v = trbl_v;
                 float base_u = 0.0;
                 bool rotate90 = false;
+                bool inv_rotate90 = false;
                 bool flip = false;
 
                 // 各面遷移ごとに90度回転やflipを考慮
@@ -303,7 +304,6 @@ void main() {
                         new_u = 1.0 - trbl_v;
                         new_v = frac;
                         base_u = 2.0 * fw;
-                        rotate90 = true;
                     }
                     else if(new_face == 2) {
                         new_u = 1.0 - frac;
@@ -313,7 +313,6 @@ void main() {
                         new_u = trbl_v;
                         new_v = 1.0 - frac;
                         base_u = 4.0 * fw;
-                        rotate90 = true;
                     }
                 }
                 else if(trbl_face == 1) { // right
@@ -321,7 +320,7 @@ void main() {
                         new_u = 1.0 - frac;
                         new_v = trbl_u;
                         base_u = 0.0 * fw;
-                        rotate90 = true;
+                        flip = true;
                     }
                     else if(new_face == 1) {
                         new_u = trbl_u;
@@ -332,7 +331,6 @@ void main() {
                         new_u = frac;
                         new_v = 1.0 - trbl_u;
                         base_u = 5.0 * fw;
-                        rotate90 = true;
                     }
                     else if(new_face == 3) {
                         new_u = trbl_u;
@@ -351,7 +349,7 @@ void main() {
                         new_u = trbl_v;
                         new_v = 1.0 - frac;
                         base_u = 2.0 * fw;
-                        rotate90 = true;
+                        flip = true;
                     }
                     else if(new_face == 2) {
                         new_u = frac;
@@ -362,32 +360,33 @@ void main() {
                         new_u = 1.0 - trbl_v;
                         new_v = frac;
                         base_u = 4.0 * fw;
-                        rotate90 = true;
+                        flip = true;
                     }
                 }
                 else if(trbl_face == 3) { // left
                     if(new_face == 0) {
-                        new_u = frac;
+                        new_u = 1.0 - frac;
                         new_v = 1.0 - trbl_u;
                         base_u = 0.0 * fw;
-                        rotate90 = true;
+                        flip = true;
                     }
                     else if(new_face == 1) {
-                        new_u = 1.0 - trbl_u;
+                        new_u = trbl_u;
                         new_v = 1.0 - frac;
                         base_u = 2.0 * fw;
-                        rotate90 = true;
+                        flip = true;
                     }
                     else if(new_face == 2) {
-                        new_u = 1.0 - frac;
+                        new_u = frac;
                         new_v = trbl_u;
                         base_u = 5.0 * fw;
-                        rotate90 = true;
                     }
                     else if(new_face == 3) {
-                        new_u = trbl_u;
+                        new_u = 1.0 - trbl_u;
                         new_v = frac;
                         base_u = 4.0 * fw;
+                        flip = true;
+                        
                     }
                 }
 
@@ -396,6 +395,11 @@ void main() {
                     float tmp = new_u;
                     new_u = new_v;
                     new_v = tmp;
+                }
+                if(inv_rotate90) {
+                    float tmp = new_u;
+                    new_u = 1.0 - new_v;
+                    new_v = 1.0 - tmp;
                 }
                 // 上下反転
                 if(flip) {

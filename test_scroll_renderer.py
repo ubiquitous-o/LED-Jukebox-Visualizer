@@ -37,11 +37,12 @@ if __name__ == "__main__":
     def update(dt):
         # 0〜359度で回転
         current_deg = (update.deg + 2) % 360
-        rotated_image = renderer.rotate(RotationAxis.X, -current_deg)
+        rotated_image = renderer.rotate(RotationAxis.Z, -current_deg)
         renderer.window.dispatch_event('on_draw')
         update.deg = current_deg
-        save_path = f"out/rotated_image_{current_deg}.png"
-        rotated_image.save(save_path)
+
+        # save_path = f"out/rotated_image_{current_deg}.png"
+        # rotated_image.save(save_path)
 
     update.deg = 0
 

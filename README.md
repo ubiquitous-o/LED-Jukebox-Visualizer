@@ -1,7 +1,3 @@
 # LED Jukebox Visualizer
-- モジュールとして使えるように整備
-- cubeと横一列両方表示できるように
-- on screenかoff screenか選べるように
-
-## Scroll Renderer
-- テクスチャの流れの図を書きたい
+This repository is for visualizing the [LED-Jukebox](https://github.com/ubiquitous-o/LED-Jukebox). It allows you to visualize the operation of the LED-Jukebox on devices with displays. And, it serves as a rendering library for the LED Jukebox.
+![capture](resources/capture.gif)
